@@ -237,11 +237,13 @@ namespace LiveSplit.UI.Components
             {
                 public readonly int startIndex;
                 public readonly int endIndex;
+                public readonly string title;
 
-                public Section(int topIndex, int bottomIndex)
+                public Section(int topIndex, int bottomIndex, string title)
                 {
                     startIndex = topIndex;
                     endIndex = bottomIndex;
+                    this.title = title;
                 }
 
                 public bool splitInRange(int splitIndex)
@@ -268,14 +270,120 @@ namespace LiveSplit.UI.Components
             public void UpdateSplits(IRun splits)
             {
                 Sections = new List<Section>();
+                int currentSubSplitLevel = 0;
                 for (int splitIndex = splits.Count() - 1; splitIndex >= 0; splitIndex--)
                 {
-                    int sectionIndex = splitIndex;
-                    while ((splitIndex > 0) && (splits[splitIndex - 1].Name.StartsWith("-"))) //TODO: Correctly determine depth
-                        splitIndex--;
+                    currentSubSplitLevel = (splitIndex > 0 ? ParseSubsplitLevel(splits[splitIndex].Name) : 0);
+                    int currentSectionEndIndex = splitIndex;
+                    string currentTitle = splits[splitIndex].Name;
+                    // The last split of a section is always the one where the Level changes.
+                    while ((splitIndex > 0 ? ParseSubsplitLevel(splits[splitIndex-1].Name) : 0) > currentSubSplitLevel)
+                    {
+                        // This means we detected the last Split of a Section. We want to parse that Section's Title now.
+                        currentSubSplitLevel++;
+                        currentTitle = ParseSectionTitle(splits[splitIndex].Name, currentSubSplitLevel);
+                        int currentSectionBeginningIndex = splitIndex;
+                        // now we need to find the very first Split of this current Section, ignoring sections that may
+                        // be inside of it.
+                        while (currentSectionBeginningIndex > 0 && ParseSubsplitLevel(splits[currentSectionBeginningIndex - 1].Name) >= currentSubSplitLevel)
+                        {
+                            currentSectionBeginningIndex--;
+                        }
+                        Sections.Insert(0, new Section(currentSectionBeginningIndex, currentSectionEndIndex, currentTitle));
+                    }
+                    if (currentSubSplitLevel == 0)
+                    {
+                        Sections.Insert(0, new Section(splitIndex, currentSectionEndIndex, currentTitle));
+                    }
 
-                    Sections.Insert(0, new Section(splitIndex, sectionIndex));
                 }
+            }
+
+            /// <summary>
+            /// Calculates the "depth" a given split should be displayed at.
+            /// </summary>
+            /// <param name="name">Name of the Split as entered by the User. Does not account for potentially being the
+            /// final Split of a Section, which would increase the "depth" by potentially multiple levels.</param>
+            /// <returns>"Depth" of the Split with this Name</returns>
+            public static int ParseSubsplitLevel(String name)
+            {
+                int counter = 0;
+                foreach (char c in name)
+                {
+                    if (c.Equals('-'))
+                    {
+                        counter++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                return counter;
+            }
+
+            /// <summary>
+            /// Parses the Title of a Section based on a Split Name and the requested depth.
+            /// </summary>
+            /// <param name="name">The given Split Name (aka the last Split of the Section)</param>
+            /// <param name="depth">The SubSplitLevel of the given Section we require the name for</param>
+            /// <returns></returns>
+            public static string ParseSectionTitle(string name, int depth)
+            {
+                int currentDepth = 0;
+                int position = -1;
+                int bracketTitleBegin = 0;
+                bool inBrackets = false;
+                bool bracketsMatch = false;
+                // TODO: Handle unmatched opening Bracket gracefully. ... This should be done with a RegExp, shouldn't it?
+                foreach (var c in name)
+                {
+                    position++;
+                    if (!inBrackets && c == '-')
+                    {
+                        currentDepth++;
+                    } else if (!inBrackets && c == '{')
+                    {
+                        currentDepth++;
+                        bracketTitleBegin = position+1;
+                        inBrackets = true;
+                        continue;
+                    } else if (inBrackets && c == '}')
+                    {
+                        inBrackets = false;
+                        bracketsMatch = depth == currentDepth;
+                    } else if (inBrackets)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                    if (currentDepth == depth)
+                    {
+                        if (!bracketsMatch)
+                        {
+                            // There may be brackets still after this for lower Level Splits, so we need to find the
+                            // last closing bracket with matching opening bracket.
+                            
+                            return name.Substring(position);
+                        }
+                        else
+                        {
+                            return name.Substring(bracketTitleBegin, position - bracketTitleBegin);
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                    
+
+                }
+                // We only get here if no more hyphens or Section Names are available/explicitly defined and the
+                // requested depth has not been reached. Thus, just return the rest of the String.
+                return position > -1 ? name.Substring(position) : "";
             }
 
             public int getSection(int splitIndex)
