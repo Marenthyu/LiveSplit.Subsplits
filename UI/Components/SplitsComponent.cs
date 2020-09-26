@@ -254,16 +254,24 @@ namespace LiveSplit.UI.Components
                     return endIndex - startIndex;
                 }
             }
-
+            /// <summary>
+            /// Holds the List of Sections for this Component. In case of nested Sections, the "deepest" Sections
+            /// will be first in the list.
+            /// </summary>
             public List<Section> Sections;
 
+            /// <summary>
+            /// Updates the Sections displayed by this Component, parsing Split names to determine Sections and their
+            /// depths.
+            /// </summary>
+            /// <param name="splits">The IRun holding the Splits to be displayed by this Component</param>
             public void UpdateSplits(IRun splits)
             {
                 Sections = new List<Section>();
                 for (int splitIndex = splits.Count() - 1; splitIndex >= 0; splitIndex--)
                 {
                     int sectionIndex = splitIndex;
-                    while ((splitIndex > 0) && (splits[splitIndex - 1].Name.StartsWith("-")))
+                    while ((splitIndex > 0) && (splits[splitIndex - 1].Name.StartsWith("-"))) //TODO: Correctly determine depth
                         splitIndex--;
 
                     Sections.Insert(0, new Section(splitIndex, sectionIndex));

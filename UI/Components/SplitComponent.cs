@@ -710,7 +710,6 @@ namespace LiveSplit.UI.Components
                     Match match = SubsplitRegex.Match(Split.Name);
                     if (match.Success)
                     {
-                        SubSplitLevel++;
                         if (CollapsedSplit || Header)
                             NameLabel.Text = match.Groups[1].Value;
                         else
@@ -719,6 +718,8 @@ namespace LiveSplit.UI.Components
                     else
                         NameLabel.Text = Split.Name;
                 }
+
+                SubSplitLevel += (ForceIndent ? 1 : 0);
 
                 var splitIndex = state.Run.IndexOf(Split);
 
